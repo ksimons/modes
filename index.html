@@ -7,10 +7,14 @@
         return arr.slice(n, arr.length).concat(arr.slice(0, n));
       }
 
+      // Full range of the guitar
       const START_NOTE = "E";
       const START_OCTAVE = 2;
       const END_NOTE = "D";
       const END_OCTAVE = 6;
+
+      // 3 notes per string x 6 strings
+      const NOTE_COUNT = 18;
 
       const HALF_STEP = "H";
       const WHOLE_STEP = "W";
@@ -57,11 +61,11 @@
         };
       }
 
-      function generateMode(mode, startingNode, startingOctave, noteCount) {
+      function generateMode(mode, startingNode, startingOctave) {
         let currentNote = startingNode;
         let currentOctave = startingOctave;
         let notes = [];
-        for (let i = 0; i < noteCount; i++) {
+        for (let i = 0; i < NOTE_COUNT; i++) {
           notes.push({ note: currentNote, octave: currentOctave });
           const step = mode[i % mode.length];
           const nextNote = incrementNote(currentNote, currentOctave, step);
@@ -151,48 +155,39 @@
       }
 
       let stopMetronome = null;
+      let currentMode = null;
 
-      function getNotes() {
-        const mode = document.getElementById("mode").value;
-        const startingNote = document.getElementById("startingNote").value;
-        const startingOctave = parseInt(
-          document.getElementById("startingOctave").value
-        );
-        const noteCount = parseInt(document.getElementById("noteCount").value);
-        return generateMode(
-          MODES[mode],
-          startingNote,
-          startingOctave,
-          noteCount
-        );
+      function getNotes(mode, startingNote) {
+        const startingOctave = ["C", "D"].includes(startingNote) ? 3 : 2;
+        return generateMode(MODES[mode], startingNote, startingOctave);
       }
 
       function updateMode() {
         stop();
+        const modeValue = document.getElementById("mode").value;
+        const startingNote = document.getElementById("startingNote").value;
+        currentMode = getNotes(modeValue, startingNote);
 
-        const notes = getNotes()
+        const notes = currentMode
           .slice(0, 8)
           .map((note) => note.note.replace(/\d/g, ""));
         const notesElement = document.getElementById("notes");
         notesElement.innerHTML = notes.join(" ");
-
-        const modeValue = document.getElementById("mode").value;
-        const mode = MODES[modeValue];
       }
 
       function play() {
         stop();
 
         const bpm = parseInt(document.getElementById("bpm").value);
-        const notes = getNotes();
 
         let index = 0;
+        let goingUp = true;
+
         stopMetronome = metronome(bpm, () => {
-          const { note, octave } = canonicalNoteName(
-            notes[index].note,
-            notes[index].octave
-          );
-          const audio = AUDIO_FILES[`${note}${octave}`];
+          const { note, octave } = currentMode[index];
+          const { note: canonicalNote, octave: canonicalOctave } =
+            canonicalNoteName(note, octave);
+          const audio = AUDIO_FILES[`${canonicalNote}${canonicalOctave}`];
           if (audio) {
             audio.play();
             setTimeout(() => {
@@ -202,8 +197,15 @@
           }
 
           const noteElement = document.getElementById("note");
-          noteElement.innerHTML = `${notes[index].note}${notes[index].octave}`;
-          index = (index + 1) % notes.length;
+          noteElement.innerHTML = `${note}${octave}`;
+
+          if (index === currentMode.length - 1) {
+            goingUp = false;
+          } else if (index === 0) {
+            goingUp = true;
+          }
+
+          index += goingUp ? 1 : -1;
         });
       }
 
@@ -244,10 +246,6 @@
         <option value="A#">A#</option>
         <option value="B">B</option>
       </select>
-      <label for="startingOctave">Starting Octave</label>
-      <input type="number" id="startingOctave" value="2" min="2" max="6" />
-      <label for="noteCount">Note Count</label>
-      <input type="number" id="noteCount" value="18" min="1" max="24" />
       <button id="start" onclick="play()" disabled="true">Start</button>
       <button onclick="stop()">Stop</button>
       <div id="intervals"></div>
